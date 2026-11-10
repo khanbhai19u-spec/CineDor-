@@ -4,11 +4,13 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
+    <!-- WebView for playing third-party embed links -->
     <WebView
         android:id="@+id/webView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Loading ProgressBar -->
     <ProgressBar
         android:id="@+id/progressBar"
         android:layout_width="wrap_content"
@@ -16,13 +18,17 @@
         android:layout_centerInParent="true"
         android:indeterminateTint="#E50914" />
 
+    <!-- Top Title Bar -->
     <TextView
         android:id="@+id/tvPlayerTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
         android:padding="16dp"
         android:textColor="#FFFFFF"
         android:textSize="15sp"
         android:background="#88000000"
         android:visibility="gone" />
+
 </RelativeLayout>
