@@ -46,7 +46,7 @@ jobs:
           python3 - <<'PY'
           import os, re, shutil, zipfile, sys
 
-          # রুট ফোল্ডার থেকে যেকোনো একটি .zip ফাইল খুঁজে বের করা
+          # ১. যেকোনো একটি .zip ফাইল খুঁজে বের করা
           zip_files = [f for f in os.listdir('.') if f.endswith('.zip')]
           if not zip_files:
               print("::error::রিপোজিটরিতে কোনো .zip ফাইল পাওয়া যায়নি!")
@@ -62,23 +62,27 @@ jobs:
           with zipfile.ZipFile(zip_name, 'r') as zf:
               zf.extractall(extract_dir)
 
-          # ফোল্ডারের ভেতর থেকে সব .java এবং .xml ফাইল রুট এ কপি করা
+          # ২. ফোল্ডারের ভেতর যেকোনো সাবফোল্ডার থেকে .java এবং .xml ফাইল খুঁজে বের করে কপি করা
           javas = []
           xmls = []
           for root, dirs, files in os.walk(extract_dir):
               for file in files:
                   full_path = os.path.join(root, file)
-                  if file.endswith('.java'):
-                      shutil.copy(full_path, '.')
+                  if file.lower().endswith('.java'):
+                      dest_path = os.path.join('.', file)
+                      shutil.copy(full_path, dest_path)
                       javas.append(file)
-                  elif file.endswith('.xml'):
-                      shutil.copy(full_path, '.')
+                      print(f"Found Java: {file}")
+                  elif file.lower().endswith('.xml'):
+                      dest_path = os.path.join('.', file)
+                      shutil.copy(full_path, dest_path)
                       xmls.append(file)
 
-          print(f"Extracted {len(javas)} java files and {len(xmls)} xml files.")
+          print(f"Total Extracted -> Java: {len(javas)}, XML: {len(xmls)}")
 
           if not javas:
-              print('::error::কোনো .java ফাইল পাওয়া যায়নি জিপ ফাইলের ভেতরে!'); sys.exit(1)
+              print('::error::কোনো .java ফাইল পাওয়া যায়নি জিপ ফাইলের ভেতরে!'); 
+              sys.exit(1)
 
           B = '_build'
           shutil.rmtree(B, ignore_errors=True)
