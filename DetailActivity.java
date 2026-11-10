@@ -29,10 +29,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -42,30 +38,11 @@ import java.util.concurrent.Executors;
 public class DetailActivity extends AppCompatActivity {
 
     public static final String EXTRA_ITEM = "item";
-    private static final int REQ_STORAGE = 41;
-
     private final ExecutorService io = Executors.newFixedThreadPool(2);
     private final Handler main = new Handler(Looper.getMainLooper());
 
     private Item item;
-    
-    // সার্ভার থেকে আসা স্ট্রিম এবং ডাউনলোড লিংক সংরক্ষণের জন্য ক্লাস ও লিস্ট
-    public static class MediaLink {
-        public String name;
-        public String url;
-        public MediaLink(String name, String url) {
-            this.name = name;
-            this.url = url;
-        }
-    }
-
-    private final List<MediaLink> serverStreams = new ArrayList<>();
-    private final List<MediaLink> serverDownloads = new ArrayList<>();
-    
-    private boolean sourcesChecked;
-    private String trailerKey = "", watchLink = "", watchNames = "";
-    private MediaLink pendingDownload;
-
+    private String trailerKey = "";
     private TextView title, meta, overview, showMore, credits, status;
     private ProgressBar progress;
     private ImageView listIcon;
@@ -130,7 +107,6 @@ public class DetailActivity extends AppCompatActivity {
                 main.post(() -> {
                     if (isFinishing()) return;
                     progress.setVisibility(View.GONE);
-                    sourcesChecked = true;
                     Toast.makeText(this, "Can't load details. Check your internet connection.", Toast.LENGTH_LONG).show();
                 });
             }
@@ -138,6 +114,7 @@ public class DetailActivity extends AppCompatActivity {
     }
 
     private void showTmdb(JSONObject d, boolean movie) {
+        progress.setVisibility(View.GONE);
         String name = d.optString(movie ? "title" : "name", item.title);
         title.setText(name);
         setOverview(d.optString("overview", item.overview));
@@ -185,26 +162,6 @@ public class DetailActivity extends AppCompatActivity {
             if (trailerKey.isEmpty()) trailerKey = v.optString("key");
         }
 
-        JSONObject wp = d.optJSONObject("watch/providers");
-        JSONObject regions = wp != null ? wp.optJSONObject("results") : null;
-        if (regions != null) {
-            for (String region : new String[]{"BD", "IN", "US"}) {
-                JSONObject r = regions.optJSONObject(region);
-                if (r == null) continue;
-                watchLink = r.optString("link");
-                StringBuilder names = new StringBuilder();
-                for (String kind : new String[]{"flatrate", "free", "ads", "rent", "buy"}) {
-                    JSONArray ps = r.optJSONArray(kind);
-                    for (int i = 0; ps != null && i < ps.length() && names.length() < 60; i++) {
-                        String n = ps.optJSONObject(i).optString("provider_name");
-                        if (names.indexOf(n) < 0) names.append(names.length() > 0 ? ", " : "").append(n);
-                    }
-                }
-                watchNames = names.toString();
-                if (!watchNames.isEmpty()) break;
-            }
-        }
-
         showCast(creditsObj != null ? creditsObj.optJSONArray("cast") : null);
 
         JSONObject rec = d.optJSONObject("recommendations");
@@ -218,75 +175,12 @@ public class DetailActivity extends AppCompatActivity {
             a.set(more.size() > 18 ? more.subList(0, 18) : more);
         }
 
-        // সার্ভার থেকে স্ট্রিম এবং ডাউনলোড লিংক ফেচ করার কল
-        fetchServerStreams();
-        
+        status.setText("✓ Ready to play — tap ▶ to start.");
+        status.setVisibility(View.VISIBLE);
+
         if (!movie) {
             showSeasons(d.optJSONArray("seasons"));
         }
-    }
-
-    private void fetchServerStreams() {
-        io.execute(() -> {
-            try {
-                String apiUrl = "https://cinedor-server.vercel.app/api/stream?id=" + item.id + "&type=" + item.type;
-                URL url = new URL(apiUrl);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(5000);
-                conn.setReadTimeout(5000);
-
-                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-                reader.close();
-
-                JSONObject json = new JSONObject(sb.toString());
-                if (json.optBoolean("success", false)) {
-                    JSONArray streamsArr = json.optJSONArray("streams");
-                    if (streamsArr != null) {
-                        for (int i = 0; i < streamsArr.length(); i++) {
-                            JSONObject obj = streamsArr.getJSONObject(i);
-                            serverStreams.add(new MediaLink(
-                                    obj.optString("server_name", "Server " + (i + 1)),
-                                    obj.optString("url")
-                            ));
-                        }
-                    }
-
-                    JSONArray downloadsArr = json.optJSONArray("downloads");
-                    if (downloadsArr != null) {
-                        for (int i = 0; i < downloadsArr.length(); i++) {
-                            JSONObject obj = downloadsArr.getJSONObject(i);
-                            serverDownloads.add(new MediaLink(
-                                    obj.optString("quality", "HD"),
-                                    obj.optString("url")
-                            ));
-                        }
-                    }
-                }
-
-                main.post(() -> {
-                    if (isFinishing()) return;
-                    progress.setVisibility(View.GONE);
-                    sourcesChecked = true;
-                    if (!serverStreams.isEmpty()) {
-                        status.setText("✓ Stream & Download ready — tap ▶ to play.");
-                        status.setVisibility(View.VISIBLE);
-                    }
-                });
-
-            } catch (Exception e) {
-                main.post(() -> {
-                    if (isFinishing()) return;
-                    progress.setVisibility(View.GONE);
-                    sourcesChecked = true;
-                });
-            }
-        });
     }
 
     private static String certification(JSONObject d, boolean movie) {
@@ -308,7 +202,8 @@ public class DetailActivity extends AppCompatActivity {
 
     private void loadArchive(String id) {
         progress.setVisibility(View.GONE);
-        sourcesChecked = true;
+        status.setText("✓ Ready to play — tap ▶ to start.");
+        status.setVisibility(View.VISIBLE);
     }
 
     private static String metaLine(String year, String cert, String runtime, double rating) {
@@ -409,7 +304,15 @@ public class DetailActivity extends AppCompatActivity {
                                 e.optInt("episode_number") + ".  " + e.optString("name"));
                         int rt = e.optInt("runtime");
                         ((TextView) rowView.findViewById(R.id.qInfo)).setText(rt > 0 ? rt + "m" : e.optString("air_date"));
-                        rowView.setOnClickListener(v -> showUnavailable());
+                        
+                        // এপিসোড ক্লিক করলে সরাসরি সেই এপিসোডের এম্বেড লিংকে প্লে হবে
+                        rowView.setOnClickListener(v -> {
+                            String embedUrl = "https://vidsrc.to/embed/tv/" + item.id + "/" + season + "/" + e.optInt("episode_number");
+                            Intent intent = new Intent(DetailActivity.this, PlayerActivity.class);
+                            intent.putExtra("video_url", embedUrl);
+                            intent.putExtra("video_title", item.title + " - S" + season + "E" + e.optInt("episode_number"));
+                            startActivity(intent);
+                        });
                         box.addView(rowView);
                     }
                 });
@@ -417,51 +320,23 @@ public class DetailActivity extends AppCompatActivity {
         });
     }
 
+    // ডিরেক্ট এম্বেড লিংক দিয়ে মুভি প্লে করা
     private void onPlay() {
-        if (!sourcesChecked) { Toast.makeText(this, "Checking sources…", Toast.LENGTH_SHORT).show(); return; }
-        if (serverStreams.isEmpty()) { showUnavailable(); return; }
-        
-        MediaLink best = serverStreams.get(0);
-        play(best);
+        String embedUrl = "";
+        if ("movie".equals(item.type)) {
+            embedUrl = "https://vidsrc.to/embed/movie/" + item.id;
+        } else {
+            embedUrl = "https://vidsrc.to/embed/tv/" + item.id + "/1/1";
+        }
+
+        Intent i = new Intent(this, PlayerActivity.class);
+        i.putExtra("video_url", embedUrl);
+        i.putExtra("video_title", item.title);
+        startActivity(i);
     }
 
     private void onDownload() {
-        if (!sourcesChecked) { Toast.makeText(this, "Checking sources…", Toast.LENGTH_SHORT).show(); return; }
-        if (serverDownloads.isEmpty()) { Toast.makeText(this, "No download links available", Toast.LENGTH_SHORT).show(); return; }
-        
-        BottomSheetDialog sheet = new BottomSheetDialog(this);
-        View root = LayoutInflater.from(this).inflate(R.layout.sheet_quality, null);
-        ((TextView) root.findViewById(R.id.sheetTitle)).setText("Select quality to download");
-        LinearLayout box = root.findViewById(R.id.sheetList);
-        
-        for (MediaLink dl : serverDownloads) {
-            View row = LayoutInflater.from(this).inflate(R.layout.item_quality, box, false);
-            ((TextView) row.findViewById(R.id.qLabel)).setText(dl.name);
-            ((TextView) row.findViewById(R.id.qInfo)).setText("Download");
-            row.setOnClickListener(v -> { sheet.dismiss(); startDownload(dl); });
-            box.addView(row);
-        }
-        sheet.setContentView(root);
-        sheet.show();
-    }
-
-    private void showUnavailable() {
-        BottomSheetDialog sheet = new BottomSheetDialog(this);
-        View root = LayoutInflater.from(this).inflate(R.layout.sheet_quality, null);
-        ((TextView) root.findViewById(R.id.sheetTitle)).setText("Video isn't available");
-        LinearLayout box = root.findViewById(R.id.sheetList);
-        sheetRow(box, "▶  Watch trailer", trailerKey.isEmpty() ? "Not available" : "YouTube", v -> { sheet.dismiss(); openTrailer(); });
-        sheet.setContentView(root);
-        sheet.show();
-    }
-
-    private void sheetRow(LinearLayout box, String label, String info, View.OnClickListener click) {
-        View row = LayoutInflater.from(this).inflate(R.layout.item_quality, box, false);
-        ((TextView) row.findViewById(R.id.qLabel)).setText(label);
-        TextView i = row.findViewById(R.id.qInfo);
-        i.setText(info);
-        row.setOnClickListener(click);
-        box.addView(row);
+        Toast.makeText(this, "Streaming via embed player. Use play button.", Toast.LENGTH_SHORT).show();
     }
 
     private void openTrailer() {
@@ -485,34 +360,6 @@ public class DetailActivity extends AppCompatActivity {
         Intent i = new Intent(Intent.ACTION_SEND).setType("text/plain")
                 .putExtra(Intent.EXTRA_TEXT, item.title + "\n" + link);
         startActivity(Intent.createChooser(i, "Share"));
-    }
-
-    // PlayerActivity-এর সাথে মিল রেখে সঠিক key "video_url" দিয়ে ফিক্স করা হলো
-    private void play(MediaLink s) {
-        Intent i = new Intent(this, PlayerActivity.class);
-        i.putExtra("video_url", s.url);
-        i.putExtra("video_title", item.title);
-        startActivity(i);
-    }
-
-    private void startDownload(MediaLink s) {
-        try {
-            Uri uri = Uri.parse(s.url);
-            android.app.DownloadManager.Request request = new android.app.DownloadManager.Request(uri);
-            request.setTitle(item.title + " (" + s.name + ")");
-            request.setDescription("Downloading via Cinedor...");
-            request.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, item.title.replaceAll("[^a-zA-Z0-9]", "_") + ".mp4");
-            request.allowScanningByMediaScanner();
-
-            android.app.DownloadManager manager = (android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-            if (manager != null) {
-                manager.enqueue(request);
-                Toast.makeText(this, "Download started...", Toast.LENGTH_SHORT).show();
-            }
-        } catch (Exception e) {
-            Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
     }
 
     @Override
