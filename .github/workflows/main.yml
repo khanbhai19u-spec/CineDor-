@@ -46,16 +46,15 @@ jobs:
           python3 - <<'PY'
           import os, re, shutil, zipfile, sys
 
-          # ১. রিপোজিটরি থেকে জিপ ফাইল খুঁজে বের করা
-          zip_files = [f for f in os.listdir('.') if f.endswith('.zip') and 'Cinedor' in f]
+          # রুট ফোল্ডার থেকে যেকোনো একটি .zip ফাইল খুঁজে বের করা
+          zip_files = [f for f in os.listdir('.') if f.endswith('.zip')]
           if not zip_files:
-              print("::error::কোনো Cinedor জিপ ফাইল পাওয়া যায়নি!")
+              print("::error::রিপোজিটরিতে কোনো .zip ফাইল পাওয়া যায়নি!")
               sys.exit(1)
 
           zip_name = zip_files[0]
-          print("Found Zip:", zip_name)
+          print("Found Zip File:", zip_name)
 
-          # ২. জিপ ফাইল এক্সট্রাক্ট করার জন্য ফোল্ডার
           extract_dir = '_extracted_source'
           shutil.rmtree(extract_dir, ignore_errors=True)
           os.makedirs(extract_dir, exist_ok=True)
@@ -63,7 +62,7 @@ jobs:
           with zipfile.ZipFile(zip_name, 'r') as zf:
               zf.extractall(extract_dir)
 
-          # ভেতরে সাবফোল্ডার থাকতে পারে, তাই .java এবং .xml ফাইলগুলো খুঁজে বের করা
+          # ফোল্ডারের ভেতর থেকে সব .java এবং .xml ফাইল রুট এ কপি করা
           javas = []
           xmls = []
           for root, dirs, files in os.walk(extract_dir):
@@ -81,17 +80,19 @@ jobs:
           if not javas:
               print('::error::কোনো .java ফাইল পাওয়া যায়নি জিপ ফাইলের ভেতরে!'); sys.exit(1)
 
-          # ৩. অ্যান্ড্রয়েড প্রজেক্ট বিল্ড স্ট্রাকচার তৈরি
           B = '_build'
           shutil.rmtree(B, ignore_errors=True)
           
           pkg = 'com.cinedor.app'
           for j in javas:
-              content = open(j, encoding='utf-8').read()
-              m = re.search(r'^\s*package\s+([\w.]+)\s*;', content, re.M)
-              if m: 
-                  pkg = m.group(1)
-                  break
+              try:
+                  content = open(j, encoding='utf-8').read()
+                  m = re.search(r'^\s*package\s+([\w.]+)\s*;', content, re.M)
+                  if m: 
+                      pkg = m.group(1)
+                      break
+              except Exception:
+                  pass
 
           print('Package:', pkg)
           src = f'{B}/app/src/main'
@@ -112,8 +113,8 @@ jobs:
                   else: dest = 'layout'
                   os.makedirs(f'{src}/res/{dest}', exist_ok=True)
                   shutil.copy(x, f'{src}/res/{dest}/')
-              except Exception as e:
-                  print(f"Skipping xml {x}: {e}")
+              except Exception:
+                  pass
 
           key = os.environ.get('TMDB_API_KEY', '').strip()
           open(f'{jdir}/Keys.java', 'w').write('package %s;\n\nfinal class Keys {\n    static final String TMDB = "%s";\n    private Keys() {}\n}\n' % (pkg, key))
@@ -124,7 +125,7 @@ jobs:
 
           open(f'{src}/res/values/colors_gen.xml', 'w').write('<?xml version="1.0" encoding="utf-8"?>\n<resources><color name="icon_bg">#0E0F12</color></resources>\n')
           if not os.path.exists(f'{src}/res/values/strings.xml'):
-              open(f'{src}/res/values/strings.xml', 'w').write('<resources><string name="app_name">Cinedor</string></resources>')
+              open(f'{src}/res/values/strings.xml', 'w').write('<resources><string name="app_name">CineDor</string></resources>')
 
           nsc = 'android:usesCleartextTraffic="true"'
           names = [j[:-5] for j in javas]
