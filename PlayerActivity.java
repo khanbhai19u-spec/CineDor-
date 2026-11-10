@@ -2,10 +2,12 @@ package com.cinedor.app;
 
 import android.annotation.SuppressLint;
 import android.content.pm.ActivityInfo;
+import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -38,9 +40,11 @@ public class PlayerActivity extends AppCompatActivity {
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
         ws.setDomStorageEnabled(true);
+        ws.setDatabaseEnabled(true);
         ws.setLoadsImagesAutomatically(true);
+        ws.setJavaScriptCanOpenWindowsAutomatically(true);
         ws.setMediaPlaybackRequiresUserGesture(false);
-        ws.setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+        ws.setUserAgentString("Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36");
 
         android.webkit.CookieManager.getInstance().setAcceptCookie(true);
         android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
@@ -48,11 +52,33 @@ public class PlayerActivity extends AppCompatActivity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                view.loadUrl(request.getUrl().toString());
+                return true;
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
                 if (progressBar != null) progressBar.setVisibility(View.GONE);
             }
         });
-        webView.setWebChromeClient(new WebChromeClient());
+
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView view, int newProgress) {
+                if (newProgress == 100 && progressBar != null) {
+                    progressBar.setVisibility(View.GONE);
+                }
+            }
+        });
+
         webView.loadUrl(url);
     }
 
@@ -67,4 +93,4 @@ public class PlayerActivity extends AppCompatActivity {
         if (webView != null) { webView.loadUrl("about:blank"); webView.destroy(); }
         super.onDestroy();
     }
-}
+    }
