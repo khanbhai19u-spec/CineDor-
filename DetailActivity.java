@@ -226,7 +226,6 @@ public class DetailActivity extends AppCompatActivity {
         }
     }
 
-    /** Vercel সার্ভার থেকে API কল করে স্ট্রিম এবং ডাউনলোড লিংক নিয়ে আসা */
     private void fetchServerStreams() {
         io.execute(() -> {
             try {
@@ -247,7 +246,6 @@ public class DetailActivity extends AppCompatActivity {
 
                 JSONObject json = new JSONObject(sb.toString());
                 if (json.optBoolean("success", false)) {
-                    // Streams পার্স করা
                     JSONArray streamsArr = json.optJSONArray("streams");
                     if (streamsArr != null) {
                         for (int i = 0; i < streamsArr.length(); i++) {
@@ -259,7 +257,6 @@ public class DetailActivity extends AppCompatActivity {
                         }
                     }
 
-                    // Downloads পার্স করা
                     JSONArray downloadsArr = json.optJSONArray("downloads");
                     if (downloadsArr != null) {
                         for (int i = 0; i < downloadsArr.length(); i++) {
@@ -420,16 +417,14 @@ public class DetailActivity extends AppCompatActivity {
         });
     }
 
-    // Play বাটন ক্লিক হ্যান্ডেল (WebView Player-এ পাঠাবে)
     private void onPlay() {
         if (!sourcesChecked) { Toast.makeText(this, "Checking sources…", Toast.LENGTH_SHORT).show(); return; }
         if (serverStreams.isEmpty()) { showUnavailable(); return; }
         
-        MediaLink best = serverStreams.get(0); // প্রথম স্ট্রিম লিংক নেওয়া
+        MediaLink best = serverStreams.get(0);
         play(best);
     }
 
-    // Download বাটন ক্লিক হ্যান্ডেল (কোয়ালিটি সিলেকশন ডায়ালগ)
     private void onDownload() {
         if (!sourcesChecked) { Toast.makeText(this, "Checking sources…", Toast.LENGTH_SHORT).show(); return; }
         if (serverDownloads.isEmpty()) { Toast.makeText(this, "No download links available", Toast.LENGTH_SHORT).show(); return; }
@@ -492,14 +487,14 @@ public class DetailActivity extends AppCompatActivity {
         startActivity(Intent.createChooser(i, "Share"));
     }
 
-    // WebView Player Activity-তে লিংক পাস করা
+    // PlayerActivity-এর সাথে মিল রেখে সঠিক key "video_url" দিয়ে ফিক্স করা হলো
     private void play(MediaLink s) {
         Intent i = new Intent(this, PlayerActivity.class);
-        i.putExtra("stream_url", s.url);
+        i.putExtra("video_url", s.url);
+        i.putExtra("video_title", item.title);
         startActivity(i);
     }
 
-    // নেটিভ DownloadManager দিয়ে ডাউনলোড শুরু করা
     private void startDownload(MediaLink s) {
         try {
             Uri uri = Uri.parse(s.url);
